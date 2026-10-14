@@ -7,82 +7,134 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="page">
 
-  <header class="hero">
-    <h1>متتبع المهام والدفعات</h1>
-    <p>
-      مكان بسيط لتنظيم يومك: سجّل مهامك اليومية مع تصنيفاتها وتواريخها والملفات المرتبطة بها،
-      وتابع الدفعات والديون بينك وبين الآخرين لتتذكر من لك ومن عليك.
-      احذف أي مهمة أو دفعة عند الانتهاء منها بضغطة واحدة.
-    </p>
-    <div class="actions">
-      <button class="btn primary" id="openTask">+ إضافة مهمة يومية</button>
-      <button class="btn secondary" id="openPay">+ إضافة دفعة</button>
-    </div>
-  </header>
+    <header class="hero">
+      <div class="icon">📋</div>
+      <h1>متتبع المهام والدفعات</h1>
+      <p>
+        مساحة بسيطة لتنظيم يومك: سجّل مهامك مع تصنيفاتها وتواريخها وملفاتها،
+        وتابع الدفعات والديون بينك وبين الآخرين لتتذكر من لك ومن عليك.
+        احذف أي سطر عند الانتهاء منه بضغطة واحدة.
+      </p>
+      <div class="actions">
+        <button class="btn primary" data-open="task">+ إضافة مهمة يومية</button>
+        <button class="btn" data-open="pay">+ إضافة دفعة</button>
+      </div>
+    </header>
 
-  <main class="board">
-    <section class="panel">
-      <h2>المهام اليومية <span class="count" id="taskCount">0</span></h2>
-      <div class="list" id="taskList"></div>
-    </section>
+    <main class="board">
 
-    <section class="panel">
-      <h2>الدفعات <span class="count" id="payCount">0</span></h2>
-      <div class="list" id="payList"></div>
-    </section>
-  </main>
+      <!-- Database: Tasks -->
+      <section class="db">
+        <h2 class="db-title"><span class="emoji">✅</span> المهام اليومية</h2>
+        <div class="db-bar">
+          <div class="views"><span class="view active">▦ جدول</span></div>
+          <div class="tools">
+            <input type="search" class="search" id="taskSearch" placeholder="بحث…" aria-label="بحث في المهام">
+            <button class="btn primary small" data-open="task">جديد</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="ico">Aa</span>المهمة</th>
+                <th><span class="ico">≔</span>التصنيف</th>
+                <th><span class="ico">📅</span>الإضافة</th>
+                <th><span class="ico">📅</span>الانتهاء</th>
+                <th><span class="ico">📎</span>الملف</th>
+                <th class="narrow"></th>
+              </tr>
+            </thead>
+            <tbody id="taskBody"></tbody>
+            <tfoot id="taskFoot"></tfoot>
+          </table>
+        </div>
+        <button class="new-row" data-open="task">+ جديد</button>
+      </section>
 
-  <!-- نافذة إضافة مهمة -->
+      <!-- Database: Payments -->
+      <section class="db">
+        <h2 class="db-title"><span class="emoji">💸</span> الدفعات</h2>
+        <div class="db-bar">
+          <div class="views"><span class="view active">▦ جدول</span></div>
+          <div class="tools">
+            <input type="search" class="search" id="paySearch" placeholder="بحث…" aria-label="بحث في الدفعات">
+            <button class="btn primary small" data-open="pay">جديد</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="ico">Aa</span>التفصيل</th>
+                <th><span class="ico">👤</span>الشخص</th>
+                <th><span class="ico">◐</span>النوع</th>
+                <th><span class="ico">#</span>المبلغ</th>
+                <th><span class="ico">📅</span>التاريخ</th>
+                <th class="narrow"></th>
+              </tr>
+            </thead>
+            <tbody id="payBody"></tbody>
+            <tfoot id="payFoot"></tfoot>
+          </table>
+        </div>
+        <button class="new-row" data-open="pay">+ جديد</button>
+        <p class="caption" id="payCaption"></p>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Dialog: new task -->
   <dialog id="taskDialog">
     <form id="taskForm" novalidate>
       <h3>مهمة جديدة</h3>
 
-      <label>تفصيل المهمة (اسم أو ترميز)
-        <input type="text" id="taskTitle" required maxlength="120">
-      </label>
-
-      <div class="field">
+      <div class="prop">
+        <label for="taskTitle">المهمة</label>
+        <input type="text" id="taskTitle" placeholder="اسم المهمة أو ترميزها" required maxlength="120">
+      </div>
+      <div class="prop top">
         <span class="label">التصنيف</span>
         <div class="tagpicker" id="taskTags"></div>
       </div>
-
-      <div class="row">
-        <label>تاريخ الإضافة
-          <input type="date" id="taskAdded" required>
-        </label>
-        <label>تاريخ الانتهاء
-          <input type="date" id="taskDue" required>
-        </label>
+      <div class="prop">
+        <label for="taskAdded">تاريخ الإضافة</label>
+        <input type="date" id="taskAdded" required>
+      </div>
+      <div class="prop">
+        <label for="taskDue">تاريخ الانتهاء</label>
+        <input type="date" id="taskDue" required>
+      </div>
+      <div class="prop">
+        <label for="taskFile">ملف (حتى 1.5 ميغابايت)</label>
+        <input type="file" id="taskFile">
       </div>
 
-      <label>ملف مرفق (اختياري، حتى 1.5 ميغابايت)
-        <input type="file" id="taskFile">
-      </label>
-
       <div class="dialog-actions">
-        <button type="submit" class="btn primary">حفظ</button>
         <button type="button" class="btn ghost" data-close>إلغاء</button>
+        <button type="submit" class="btn primary">حفظ</button>
       </div>
     </form>
   </dialog>
 
-  <!-- نافذة إضافة دفعة -->
+  <!-- Dialog: new payment -->
   <dialog id="payDialog">
     <form id="payForm" novalidate>
       <h3>دفعة جديدة</h3>
 
-      <label>تفصيل الدفعة (اسم أو عملية تربطها بالحادثة)
-        <input type="text" id="payTitle" required maxlength="120">
-      </label>
-
-      <div class="field">
+      <div class="prop">
+        <label for="payTitle">التفصيل</label>
+        <input type="text" id="payTitle" placeholder="اسم أو عملية تربط الدفعة بالحادثة" required maxlength="120">
+      </div>
+      <div class="prop top">
         <span class="label">الشخص</span>
         <div class="tagpicker" id="payTags"></div>
       </div>
-
-      <div class="field">
-        <span class="label">نوع الدفعة</span>
+      <div class="prop">
+        <span class="label">النوع</span>
         <div class="type-switch">
           <label class="type creditor">
             <input type="radio" name="payType" value="creditor" checked>
@@ -94,26 +146,30 @@
           </label>
         </div>
       </div>
-
-      <label>تاريخ العملية
+      <div class="prop">
+        <label for="payAmount">المبلغ</label>
+        <input type="number" id="payAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" required>
+      </div>
+      <div class="prop">
+        <label for="payDate">تاريخ العملية</label>
         <input type="date" id="payDate" required>
-      </label>
+      </div>
 
       <div class="dialog-actions">
-        <button type="submit" class="btn primary">حفظ</button>
         <button type="button" class="btn ghost" data-close>إلغاء</button>
+        <button type="submit" class="btn primary">حفظ</button>
       </div>
     </form>
   </dialog>
 
-  <!-- نافذة التأكيد -->
+  <!-- Dialog: confirm delete -->
   <dialog id="confirmDialog" class="small">
     <form method="dialog">
       <h3>هل أنت متأكد؟</h3>
       <p id="confirmText"></p>
-      <div class="dialog-actions">
-        <button value="yes" class="btn danger">نعم، احذف</button>
+      <div class="dialog-actions center">
         <button value="no" class="btn ghost">تراجع</button>
+        <button value="yes" class="btn danger">نعم، احذف</button>
       </div>
     </form>
   </dialog>
