@@ -1,179 +1,301 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>متتبع المهام والدفعات</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div class="page">
+:root {
+  --bg: #ffffff;
+  --text: #37352f;
+  --muted: #787774;
+  --faint: #9b9a97;
+  --border: #e9e9e7;
+  --hover: #f7f7f5;
+  --soft: #f1f1ef;
+  --blue: #2383e2;
+  --blue-soft: #e7f3fb;
+  --blue-border: #bcdcf6;
+  --green: #1c7a5b;
+  --green-bg: #dbeddb;
+  --red: #c4432b;
+  --red-bg: #ffe2dd;
+  --radius: 4px;
+}
 
-    <header class="hero">
-      <div class="icon">📋</div>
-      <h1>متتبع المهام والدفعات</h1>
-      <p>
-        مساحة بسيطة لتنظيم يومك: سجّل مهامك مع تصنيفاتها وتواريخها وملفاتها،
-        وتابع الدفعات والديون بينك وبين الآخرين لتتذكر من لك ومن عليك.
-        احذف أي سطر عند الانتهاء منه بضغطة واحدة.
-      </p>
-      <div class="actions">
-        <button class="btn primary" data-open="task">+ إضافة مهمة يومية</button>
-        <button class="btn" data-open="pay">+ إضافة دفعة</button>
-      </div>
-    </header>
+* { box-sizing: border-box; }
 
-    <main class="board">
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Tahoma, "Noto Naskh Arabic", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
 
-      <!-- Database: Tasks -->
-      <section class="db">
-        <h2 class="db-title"><span class="emoji">✅</span> المهام اليومية</h2>
-        <div class="db-bar">
-          <div class="views"><span class="view active">▦ جدول</span></div>
-          <div class="tools">
-            <input type="search" class="search" id="taskSearch" placeholder="بحث…" aria-label="بحث في المهام">
-            <button class="btn primary small" data-open="task">جديد</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th><span class="ico">Aa</span>المهمة</th>
-                <th><span class="ico">≔</span>التصنيف</th>
-                <th><span class="ico">📅</span>الإضافة</th>
-                <th><span class="ico">📅</span>الانتهاء</th>
-                <th><span class="ico">📎</span>الملف</th>
-                <th class="narrow"></th>
-              </tr>
-            </thead>
-            <tbody id="taskBody"></tbody>
-            <tfoot id="taskFoot"></tfoot>
-          </table>
-        </div>
-        <button class="new-row" data-open="task">+ جديد</button>
-      </section>
+/* ---------- Page & margins ---------- */
+.page {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: clamp(24px, 6vw, 96px) clamp(16px, 6vw, 96px) 96px;
+}
 
-      <!-- Database: Payments -->
-      <section class="db">
-        <h2 class="db-title"><span class="emoji">💸</span> الدفعات</h2>
-        <div class="db-bar">
-          <div class="views"><span class="view active">▦ جدول</span></div>
-          <div class="tools">
-            <input type="search" class="search" id="paySearch" placeholder="بحث…" aria-label="بحث في الدفعات">
-            <button class="btn primary small" data-open="pay">جديد</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th><span class="ico">Aa</span>التفصيل</th>
-                <th><span class="ico">👤</span>الشخص</th>
-                <th><span class="ico">◐</span>النوع</th>
-                <th><span class="ico">#</span>المبلغ</th>
-                <th><span class="ico">📅</span>التاريخ</th>
-                <th class="narrow"></th>
-              </tr>
-            </thead>
-            <tbody id="payBody"></tbody>
-            <tfoot id="payFoot"></tfoot>
-          </table>
-        </div>
-        <button class="new-row" data-open="pay">+ جديد</button>
-        <p class="caption" id="payCaption"></p>
-      </section>
+/* ---------- Hero ---------- */
+.hero { margin-bottom: 56px; }
+.hero .icon { font-size: 72px; line-height: 1; margin-bottom: 8px; }
+.hero h1 { margin: 0 0 12px; font-size: clamp(2rem, 4vw, 2.7rem); font-weight: 700; letter-spacing: -.5px; }
+.hero p { max-width: 680px; margin: 0 0 24px; color: var(--muted); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-    </main>
-  </div>
+/* ---------- Buttons ---------- */
+.btn {
+  font: inherit;
+  font-size: .9rem;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .1s;
+}
+.btn:hover { background: var(--soft); }
+.btn.small { padding: 3px 12px; font-size: .85rem; }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn.primary:hover { background: #1b74cc; }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.btn.ghost:hover { background: var(--soft); }
+.btn.danger { background: #eb5757; border-color: #eb5757; color: #fff; }
+.btn.danger:hover { background: #d94848; }
 
-  <!-- Dialog: new task -->
-  <dialog id="taskDialog">
-    <form id="taskForm" novalidate>
-      <h3>مهمة جديدة</h3>
+/* ---------- Board: side by side on wide screens ---------- */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .board { grid-template-columns: minmax(0, 1fr); gap: 64px; }
+}
 
-      <div class="prop">
-        <label for="taskTitle">المهمة</label>
-        <input type="text" id="taskTitle" placeholder="اسم المهمة أو ترميزها" required maxlength="120">
-      </div>
-      <div class="prop top">
-        <span class="label">التصنيف</span>
-        <div class="tagpicker" id="taskTags"></div>
-      </div>
-      <div class="prop">
-        <label for="taskAdded">تاريخ الإضافة</label>
-        <input type="date" id="taskAdded" required>
-      </div>
-      <div class="prop">
-        <label for="taskDue">تاريخ الانتهاء</label>
-        <input type="date" id="taskDue" required>
-      </div>
-      <div class="prop">
-        <label for="taskFile">ملف (حتى 1.5 ميغابايت)</label>
-        <input type="file" id="taskFile">
-      </div>
+/* ---------- Database header ---------- */
+.db-title { margin: 0 0 6px; font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
+.db-title .emoji { margin-inline-end: 4px; }
 
-      <div class="dialog-actions">
-        <button type="button" class="btn ghost" data-close>إلغاء</button>
-        <button type="submit" class="btn primary">حفظ</button>
-      </div>
-    </form>
-  </dialog>
+.db-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 0;
+}
+.views { display: flex; gap: 4px; }
+.view {
+  font-size: .85rem;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+}
+.view.active { color: var(--text); font-weight: 500; box-shadow: inset 0 -2px 0 var(--text); border-radius: 0; }
 
-  <!-- Dialog: new payment -->
-  <dialog id="payDialog">
-    <form id="payForm" novalidate>
-      <h3>دفعة جديدة</h3>
+.tools { display: flex; align-items: center; gap: 8px; }
+.search {
+  width: 120px;
+  font: inherit;
+  font-size: .85rem;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  transition: width .15s, background .15s;
+}
+.search:hover { background: var(--hover); }
+.search:focus { width: 180px; outline: 0; background: #fff; border-color: var(--blue); }
 
-      <div class="prop">
-        <label for="payTitle">التفصيل</label>
-        <input type="text" id="payTitle" placeholder="اسم أو عملية تربط الدفعة بالحادثة" required maxlength="120">
-      </div>
-      <div class="prop top">
-        <span class="label">الشخص</span>
-        <div class="tagpicker" id="payTags"></div>
-      </div>
-      <div class="prop">
-        <span class="label">النوع</span>
-        <div class="type-switch">
-          <label class="type creditor">
-            <input type="radio" name="payType" value="creditor" checked>
-            <span>دائن (لي عنده)</span>
-          </label>
-          <label class="type debtor">
-            <input type="radio" name="payType" value="debtor">
-            <span>مدين (عليّ له)</span>
-          </label>
-        </div>
-      </div>
-      <div class="prop">
-        <label for="payAmount">المبلغ</label>
-        <input type="number" id="payAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" required>
-      </div>
-      <div class="prop">
-        <label for="payDate">تاريخ العملية</label>
-        <input type="date" id="payDate" required>
-      </div>
+/* ---------- Table (Notion database look) ---------- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 640px; border-collapse: collapse; }
+th, td {
+  text-align: start;
+  padding: 0 10px;
+  height: 34px;
+  border-bottom: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+  font-size: .9rem;
+  vertical-align: middle;
+}
+th:last-child, td:last-child { border-inline-end: 0; }
+th {
+  font-weight: 500;
+  font-size: .82rem;
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
+}
+th:hover { background: var(--hover); }
+th .ico { color: var(--faint); margin-inline-end: 6px; font-size: .78rem; }
+th.narrow, td.narrow { width: 1%; white-space: nowrap; }
 
-      <div class="dialog-actions">
-        <button type="button" class="btn ghost" data-close>إلغاء</button>
-        <button type="submit" class="btn primary">حفظ</button>
-      </div>
-    </form>
-  </dialog>
+tbody tr:hover td { background: var(--hover); }
+td.title { font-weight: 500; min-width: 150px; }
+td.date { white-space: nowrap; color: var(--muted); }
+td.date.late { color: var(--red); font-weight: 600; }
+td.empty { text-align: center; color: var(--faint); height: 56px; }
+td.amount { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+td.amount.creditor { color: var(--green); }
+td.amount.debtor { color: var(--red); }
 
-  <!-- Dialog: confirm delete -->
-  <dialog id="confirmDialog" class="small">
-    <form method="dialog">
-      <h3>هل أنت متأكد؟</h3>
-      <p id="confirmText"></p>
-      <div class="dialog-actions center">
-        <button value="no" class="btn ghost">تراجع</button>
-        <button value="yes" class="btn danger">نعم، احذف</button>
-      </div>
-    </form>
-  </dialog>
+tfoot td {
+  border-bottom: 0;
+  font-size: .75rem;
+  color: var(--faint);
+  height: 30px;
+  white-space: nowrap;
+}
+tfoot td b { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-inline-end: 4px; }
 
-  <script src="script.js"></script>
-</body>
-</html>
+.new-row {
+  display: block;
+  width: 100%;
+  text-align: start;
+  font: inherit;
+  font-size: .88rem;
+  color: var(--faint);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.new-row:hover { background: var(--hover); }
+.caption { margin: 10px 2px 0; font-size: .82rem; color: var(--muted); }
+
+a.file {
+  color: var(--blue);
+  font-size: .85rem;
+  text-decoration: underline;
+  text-decoration-color: var(--blue-border);
+  display: inline-block;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.muted { color: var(--faint); }
+
+/* ---------- Tags (Notion select colors) ---------- */
+.tags { display: flex; flex-wrap: nowrap; gap: 4px; }
+.tag, .badge {
+  background: var(--bg-c, #e3e2e0);
+  color: var(--fg-c, #32302c);
+  font-size: .8rem;
+  line-height: 1.4;
+  padding: 0 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.badge.creditor { --bg-c: var(--green-bg); --fg-c: #1c3829; }
+.badge.debtor { --bg-c: var(--red-bg); --fg-c: #5d1715; }
+
+/* ---------- done? button ---------- */
+.done-btn {
+  font: inherit;
+  font-size: .78rem;
+  padding: 0 10px;
+  line-height: 22px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.done-btn:hover { background: var(--blue-soft); border-color: var(--blue-border); color: var(--blue); }
+
+/* ---------- Dialogs ---------- */
+dialog {
+  border: 0;
+  border-radius: 8px;
+  padding: 24px;
+  width: min(520px, 92vw);
+  box-shadow: 0 0 0 1px rgba(15,15,15,.05), 0 16px 48px rgba(15,15,15,.2);
+  font-family: inherit;
+  color: var(--text);
+}
+dialog.small { width: min(380px, 92vw); text-align: center; }
+dialog::backdrop { background: rgba(15, 15, 15, .4); }
+dialog h3 { margin: 0 0 16px; font-size: 1.2rem; }
+
+.prop {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.prop.top { align-items: start; }
+.prop label, .prop .label { color: var(--muted); font-size: .85rem; }
+.prop.top .label { padding-top: 6px; }
+@media (max-width: 480px) { .prop { grid-template-columns: 1fr; gap: 2px; } }
+
+dialog input[type=text],
+dialog input[type=date],
+dialog input[type=number],
+dialog input[type=file] {
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: .9rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--hover);
+}
+dialog input:focus { outline: 0; background: #fff; border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-border); }
+
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.dialog-actions.center { justify-content: center; }
+
+/* ---------- Tag picker ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.chip {
+  font: inherit;
+  font-size: .8rem;
+  padding: 0 10px;
+  border-radius: 3px;
+  border: 0;
+  background: var(--bg-c);
+  color: var(--fg-c);
+  cursor: pointer;
+  opacity: .6;
+}
+.chip:hover { opacity: .9; }
+.chip.on { opacity: 1; box-shadow: 0 0 0 2px var(--blue); }
+.tag-add { display: flex; gap: 6px; }
+.tag-add button {
+  font: inherit;
+  font-size: .85rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  padding: 0 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.tag-add button:hover { background: var(--hover); }
+
+/* ---------- Payment type ---------- */
+.type-switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.type { cursor: pointer; }
+.type input { position: absolute; opacity: 0; pointer-events: none; }
+.type span {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 3px;
+  font-size: .85rem;
+  background: var(--bg-c);
+  color: var(--fg-c);
+  opacity: .55;
+}
+.type.creditor { --bg-c: var(--green-bg); --fg-c: #1c3829; }
+.type.debtor { --bg-c: var(--red-bg); --fg-c: #5d1715; }
+.type input:checked + span { opacity: 1; box-shadow: 0 0 0 2px var(--blue); }
