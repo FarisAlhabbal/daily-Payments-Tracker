@@ -1,92 +1,122 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Payments Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>متتبع المهام والدفعات</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="page">
-    <header class="page-header">
-      <h1>Daily Payments Tracker</h1>
-      <p class="subtitle">Track what you paid and what you borrowed.</p>
-    </header>
 
-    <section class="summary" aria-label="Summary">
-      <div class="card">
-        <span class="card-label">Total paid</span>
-        <span class="card-value" id="total-paid">0</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Total borrowed</span>
-        <span class="card-value" id="total-borrowed">0</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Entries</span>
-        <span class="card-value" id="total-entries">0</span>
-      </div>
+  <header class="hero">
+    <h1>متتبع المهام والدفعات</h1>
+    <p>
+      مكان بسيط لتنظيم يومك: سجّل مهامك اليومية مع تصنيفاتها وتواريخها والملفات المرتبطة بها،
+      وتابع الدفعات والديون بينك وبين الآخرين لتتذكر من لك ومن عليك.
+      احذف أي مهمة أو دفعة عند الانتهاء منها بضغطة واحدة.
+    </p>
+    <div class="actions">
+      <button class="btn primary" id="openTask">+ إضافة مهمة يومية</button>
+      <button class="btn secondary" id="openPay">+ إضافة دفعة</button>
+    </div>
+  </header>
+
+  <main class="board">
+    <section class="panel">
+      <h2>المهام اليومية <span class="count" id="taskCount">0</span></h2>
+      <div class="list" id="taskList"></div>
     </section>
 
-    <form id="payment-form" class="add-row">
-      <input type="text" id="name" placeholder="Name" required>
-      <input type="number" id="amount" placeholder="Amount" min="0" step="0.01" required>
-      <input type="date" id="date" required>
-      <select id="tag">
-        <option value="food">Food</option>
-        <option value="bills">Bills</option>
-        <option value="transport">Transport</option>
-        <option value="shopping">Shopping</option>
-        <option value="other">Other</option>
-      </select>
-      <select id="type">
-        <option value="paid">Paid</option>
-        <option value="borrowed">Borrowed</option>
-      </select>
-      <button type="submit">+ Add</button>
-    </form>
-
-    <div class="table-wrap">
-      <table id="payments-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th class="num">Amount</th>
-            <th>Date</th>
-            <th>Tag</th>
-            <th>Type</th>
-            <th class="actions-col"></th>
-          </tr>
-        </thead>
-        <tbody id="payments-body">
-          <tr>
-            <td>Groceries</td>
-            <td class="num">45.50</td>
-            <td>2026-10-11</td>
-            <td><span class="tag tag-food">Food</span></td>
-            <td><span class="badge badge-paid">Paid</span></td>
-            <td class="actions-col"><button class="delete-btn" aria-label="Delete row">&times;</button></td>
-          </tr>
-          <tr>
-            <td>Electricity bill</td>
-            <td class="num">80.00</td>
-            <td>2026-10-10</td>
-            <td><span class="tag tag-bills">Bills</span></td>
-            <td><span class="badge badge-paid">Paid</span></td>
-            <td class="actions-col"><button class="delete-btn" aria-label="Delete row">&times;</button></td>
-          </tr>
-          <tr>
-            <td>Borrowed from Ali</td>
-            <td class="num">120.00</td>
-            <td>2026-10-09</td>
-            <td><span class="tag tag-other">Other</span></td>
-            <td><span class="badge badge-borrowed">Borrowed</span></td>
-            <td class="actions-col"><button class="delete-btn" aria-label="Delete row">&times;</button></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section class="panel">
+      <h2>الدفعات <span class="count" id="payCount">0</span></h2>
+      <div class="list" id="payList"></div>
+    </section>
   </main>
+
+  <!-- نافذة إضافة مهمة -->
+  <dialog id="taskDialog">
+    <form id="taskForm" novalidate>
+      <h3>مهمة جديدة</h3>
+
+      <label>تفصيل المهمة (اسم أو ترميز)
+        <input type="text" id="taskTitle" required maxlength="120">
+      </label>
+
+      <div class="field">
+        <span class="label">التصنيف</span>
+        <div class="tagpicker" id="taskTags"></div>
+      </div>
+
+      <div class="row">
+        <label>تاريخ الإضافة
+          <input type="date" id="taskAdded" required>
+        </label>
+        <label>تاريخ الانتهاء
+          <input type="date" id="taskDue" required>
+        </label>
+      </div>
+
+      <label>ملف مرفق (اختياري، حتى 1.5 ميغابايت)
+        <input type="file" id="taskFile">
+      </label>
+
+      <div class="dialog-actions">
+        <button type="submit" class="btn primary">حفظ</button>
+        <button type="button" class="btn ghost" data-close>إلغاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- نافذة إضافة دفعة -->
+  <dialog id="payDialog">
+    <form id="payForm" novalidate>
+      <h3>دفعة جديدة</h3>
+
+      <label>تفصيل الدفعة (اسم أو عملية تربطها بالحادثة)
+        <input type="text" id="payTitle" required maxlength="120">
+      </label>
+
+      <div class="field">
+        <span class="label">الشخص</span>
+        <div class="tagpicker" id="payTags"></div>
+      </div>
+
+      <div class="field">
+        <span class="label">نوع الدفعة</span>
+        <div class="type-switch">
+          <label class="type creditor">
+            <input type="radio" name="payType" value="creditor" checked>
+            <span>دائن (لي عنده)</span>
+          </label>
+          <label class="type debtor">
+            <input type="radio" name="payType" value="debtor">
+            <span>مدين (عليّ له)</span>
+          </label>
+        </div>
+      </div>
+
+      <label>تاريخ العملية
+        <input type="date" id="payDate" required>
+      </label>
+
+      <div class="dialog-actions">
+        <button type="submit" class="btn primary">حفظ</button>
+        <button type="button" class="btn ghost" data-close>إلغاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- نافذة التأكيد -->
+  <dialog id="confirmDialog" class="small">
+    <form method="dialog">
+      <h3>هل أنت متأكد؟</h3>
+      <p id="confirmText"></p>
+      <div class="dialog-actions">
+        <button value="yes" class="btn danger">نعم، احذف</button>
+        <button value="no" class="btn ghost">تراجع</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="script.js"></script>
 </body>
