@@ -1,301 +1,366 @@
-:root {
-  --bg: #ffffff;
-  --text: #37352f;
-  --muted: #787774;
-  --faint: #9b9a97;
-  --border: #e9e9e7;
-  --hover: #f7f7f5;
-  --soft: #f1f1ef;
-  --blue: #2383e2;
-  --blue-soft: #e7f3fb;
-  --blue-border: #bcdcf6;
-  --green: #1c7a5b;
-  --green-bg: #dbeddb;
-  --red: #c4432b;
-  --red-bg: #ffe2dd;
-  --radius: 4px;
+/* ===== Storage ===== */
+const STORE_KEY = 'task-payment-tracker-v1';
+const MAX_FILE = 1.5 * 1024 * 1024;
+
+// Notion-style select colors: [background, text]
+const NOTION = [
+  ['#d3e5ef', '#183347'], // blue
+  ['#dbeddb', '#1c3829'], // green
+  ['#e8deee', '#412454'], // purple
+  ['#fadec9', '#49290e'], // orange
+  ['#f5e0e9', '#4c2337'], // pink
+  ['#fdecc8', '#402c1b'], // yellow
+  ['#e3e2e0', '#32302c'], // gray
+  ['#eee0da', '#442a1e'], // brown
+];
+
+let state = load();
+
+function load() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+  if (!s) s = { tasks: [], payments: [], tags: { task: [], pay: [] } };
+  // migrate tags saved by older versions (hex colors) to palette indexes
+  ['task', 'pay'].forEach((k) => {
+    s.tags[k].forEach((t, i) => { if (typeof t.ci !== 'number') t.ci = i % NOTION.length; });
+  });
+  return s;
 }
 
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", Tahoma, "Noto Naskh Arabic", Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    alert('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
+    return false;
+  }
 }
 
-/* ---------- Page & margins ---------- */
-.page {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: clamp(24px, 6vw, 96px) clamp(16px, 6vw, 96px) 96px;
+/* ===== Helpers ===== */
+const $ = (id) => document.getElementById(id);
+
+function todayStr() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/* ---------- Hero ---------- */
-.hero { margin-bottom: 56px; }
-.hero .icon { font-size: 72px; line-height: 1; margin-bottom: 8px; }
-.hero h1 { margin: 0 0 12px; font-size: clamp(2rem, 4vw, 2.7rem); font-weight: 700; letter-spacing: -.5px; }
-.hero p { max-width: 680px; margin: 0 0 24px; color: var(--muted); }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* ---------- Buttons ---------- */
-.btn {
-  font: inherit;
-  font-size: .9rem;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fff;
-  color: var(--text);
-  cursor: pointer;
-  transition: background .1s;
-}
-.btn:hover { background: var(--soft); }
-.btn.small { padding: 3px 12px; font-size: .85rem; }
-.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-.btn.primary:hover { background: #1b74cc; }
-.btn.ghost { border-color: transparent; color: var(--muted); }
-.btn.ghost:hover { background: var(--soft); }
-.btn.danger { background: #eb5757; border-color: #eb5757; color: #fff; }
-.btn.danger:hover { background: #d94848; }
-
-/* ---------- Board: side by side on wide screens ---------- */
-.board {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 56px;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .board { grid-template-columns: minmax(0, 1fr); gap: 64px; }
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
 
-/* ---------- Database header ---------- */
-.db-title { margin: 0 0 6px; font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
-.db-title .emoji { margin-inline-end: 4px; }
+function fmt(n) {
+  return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
-.db-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
-  margin-bottom: 0;
+function applyColor(node, kind, name) {
+  const t = state.tags[kind].find((x) => x.name === name);
+  const [bg, fg] = NOTION[t ? t.ci : 6];
+  node.style.setProperty('--bg-c', bg);
+  node.style.setProperty('--fg-c', fg);
 }
-.views { display: flex; gap: 4px; }
-.view {
-  font-size: .85rem;
-  color: var(--muted);
-  padding: 4px 8px;
-  border-radius: var(--radius);
-}
-.view.active { color: var(--text); font-weight: 500; box-shadow: inset 0 -2px 0 var(--text); border-radius: 0; }
 
-.tools { display: flex; align-items: center; gap: 8px; }
-.search {
-  width: 120px;
-  font: inherit;
-  font-size: .85rem;
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--text);
-  transition: width .15s, background .15s;
+function makeTag(kind, name) {
+  const t = el('span', 'tag', name);
+  applyColor(t, kind, name);
+  return t;
 }
-.search:hover { background: var(--hover); }
-.search:focus { width: 180px; outline: 0; background: #fff; border-color: var(--blue); }
 
-/* ---------- Table (Notion database look) ---------- */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; min-width: 640px; border-collapse: collapse; }
-th, td {
-  text-align: start;
-  padding: 0 10px;
-  height: 34px;
-  border-bottom: 1px solid var(--border);
-  border-inline-end: 1px solid var(--border);
-  font-size: .9rem;
-  vertical-align: middle;
+function cell(cls, ...children) {
+  const td = el('td', cls);
+  children.forEach((c) => td.append(c));
+  return td;
 }
-th:last-child, td:last-child { border-inline-end: 0; }
-th {
-  font-weight: 500;
-  font-size: .82rem;
-  color: var(--muted);
-  white-space: nowrap;
-  user-select: none;
-}
-th:hover { background: var(--hover); }
-th .ico { color: var(--faint); margin-inline-end: 6px; font-size: .78rem; }
-th.narrow, td.narrow { width: 1%; white-space: nowrap; }
 
-tbody tr:hover td { background: var(--hover); }
-td.title { font-weight: 500; min-width: 150px; }
-td.date { white-space: nowrap; color: var(--muted); }
-td.date.late { color: var(--red); font-weight: 600; }
-td.empty { text-align: center; color: var(--faint); height: 56px; }
-td.amount { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
-td.amount.creditor { color: var(--green); }
-td.amount.debtor { color: var(--red); }
-
-tfoot td {
-  border-bottom: 0;
-  font-size: .75rem;
-  color: var(--faint);
-  height: 30px;
-  white-space: nowrap;
+function emptyRow(cols, text) {
+  const tr = el('tr');
+  const td = el('td', 'empty', text);
+  td.colSpan = cols;
+  tr.append(td);
+  return tr;
 }
-tfoot td b { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-inline-end: 4px; }
 
-.new-row {
-  display: block;
-  width: 100%;
-  text-align: start;
-  font: inherit;
-  font-size: .88rem;
-  color: var(--faint);
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  padding: 7px 10px;
-  cursor: pointer;
+function confirmAsk(message) {
+  return new Promise((resolve) => {
+    const dlg = $('confirmDialog');
+    $('confirmText').textContent = message;
+    dlg.returnValue = '';
+    dlg.addEventListener('close', () => resolve(dlg.returnValue === 'yes'), { once: true });
+    dlg.showModal();
+  });
 }
-.new-row:hover { background: var(--hover); }
-.caption { margin: 10px 2px 0; font-size: .82rem; color: var(--muted); }
 
-a.file {
-  color: var(--blue);
-  font-size: .85rem;
-  text-decoration: underline;
-  text-decoration-color: var(--blue-border);
-  display: inline-block;
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.muted { color: var(--faint); }
+/* ===== Tag picker ===== */
+function TagPicker(box, kind, single) {
+  const selected = new Set();
+  const chips = el('div', 'chips');
+  const addWrap = el('div', 'tag-add');
+  const input = el('input');
+  input.type = 'text';
+  input.placeholder = single ? 'اسم شخص جديد' : 'تصنيف جديد';
+  input.maxLength = 30;
+  const addBtn = el('button', null, 'إضافة');
+  addBtn.type = 'button';
+  addWrap.append(input, addBtn);
+  box.append(chips, addWrap);
 
-/* ---------- Tags (Notion select colors) ---------- */
-.tags { display: flex; flex-wrap: nowrap; gap: 4px; }
-.tag, .badge {
-  background: var(--bg-c, #e3e2e0);
-  color: var(--fg-c, #32302c);
-  font-size: .8rem;
-  line-height: 1.4;
-  padding: 0 8px;
-  border-radius: 3px;
-  white-space: nowrap;
-}
-.badge.creditor { --bg-c: var(--green-bg); --fg-c: #1c3829; }
-.badge.debtor { --bg-c: var(--red-bg); --fg-c: #5d1715; }
+  function render() {
+    chips.innerHTML = '';
+    state.tags[kind].forEach((t) => {
+      const b = el('button', 'chip' + (selected.has(t.name) ? ' on' : ''), t.name);
+      b.type = 'button';
+      applyColor(b, kind, t.name);
+      b.onclick = () => {
+        if (single) {
+          const was = selected.has(t.name);
+          selected.clear();
+          if (!was) selected.add(t.name);
+        } else {
+          selected.has(t.name) ? selected.delete(t.name) : selected.add(t.name);
+        }
+        render();
+      };
+      chips.append(b);
+    });
+  }
 
-/* ---------- done? button ---------- */
-.done-btn {
-  font: inherit;
-  font-size: .78rem;
-  padding: 0 10px;
-  line-height: 22px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--muted);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.done-btn:hover { background: var(--blue-soft); border-color: var(--blue-border); color: var(--blue); }
+  function addTag() {
+    const name = input.value.trim();
+    if (!name) return;
+    if (!state.tags[kind].some((t) => t.name === name)) {
+      state.tags[kind].push({ name, ci: state.tags[kind].length % NOTION.length });
+      save();
+    }
+    if (single) selected.clear();
+    selected.add(name);
+    input.value = '';
+    render();
+  }
 
-/* ---------- Dialogs ---------- */
-dialog {
-  border: 0;
-  border-radius: 8px;
-  padding: 24px;
-  width: min(520px, 92vw);
-  box-shadow: 0 0 0 1px rgba(15,15,15,.05), 0 16px 48px rgba(15,15,15,.2);
-  font-family: inherit;
-  color: var(--text);
-}
-dialog.small { width: min(380px, 92vw); text-align: center; }
-dialog::backdrop { background: rgba(15, 15, 15, .4); }
-dialog h3 { margin: 0 0 16px; font-size: 1.2rem; }
+  addBtn.onclick = addTag;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+  });
 
-.prop {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  render();
+  return {
+    get: () => [...selected],
+    reset: () => { selected.clear(); input.value = ''; render(); },
+  };
 }
-.prop.top { align-items: start; }
-.prop label, .prop .label { color: var(--muted); font-size: .85rem; }
-.prop.top .label { padding-top: 6px; }
-@media (max-width: 480px) { .prop { grid-template-columns: 1fr; gap: 2px; } }
 
-dialog input[type=text],
-dialog input[type=date],
-dialog input[type=number],
-dialog input[type=file] {
-  width: 100%;
-  padding: 6px 10px;
-  font: inherit;
-  font-size: .9rem;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--hover);
-}
-dialog input:focus { outline: 0; background: #fff; border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-border); }
+const taskPicker = TagPicker($('taskTags'), 'task', false);
+const payPicker = TagPicker($('payTags'), 'pay', true);
 
-.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
-.dialog-actions.center { justify-content: center; }
+/* ===== Tasks table ===== */
+function renderTasks() {
+  const body = $('taskBody');
+  const foot = $('taskFoot');
+  body.innerHTML = '';
+  foot.innerHTML = '';
+  $('taskCount') && ($('taskCount').textContent = state.tasks.length);
 
-/* ---------- Tag picker ---------- */
-.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
-.chip {
-  font: inherit;
-  font-size: .8rem;
-  padding: 0 10px;
-  border-radius: 3px;
-  border: 0;
-  background: var(--bg-c);
-  color: var(--fg-c);
-  cursor: pointer;
-  opacity: .6;
-}
-.chip:hover { opacity: .9; }
-.chip.on { opacity: 1; box-shadow: 0 0 0 2px var(--blue); }
-.tag-add { display: flex; gap: 6px; }
-.tag-add button {
-  font: inherit;
-  font-size: .85rem;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--muted);
-  padding: 0 12px;
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.tag-add button:hover { background: var(--hover); }
+  const q = $('taskSearch').value.trim().toLowerCase();
+  const rows = state.tasks
+    .filter((t) => !q || (t.title + ' ' + t.tags.join(' ')).toLowerCase().includes(q))
+    .sort((a, b) => a.due.localeCompare(b.due));
 
-/* ---------- Payment type ---------- */
-.type-switch { display: flex; gap: 6px; flex-wrap: wrap; }
-.type { cursor: pointer; }
-.type input { position: absolute; opacity: 0; pointer-events: none; }
-.type span {
-  display: inline-block;
-  padding: 1px 10px;
-  border-radius: 3px;
-  font-size: .85rem;
-  background: var(--bg-c);
-  color: var(--fg-c);
-  opacity: .55;
+  if (!rows.length) {
+    body.append(emptyRow(6, state.tasks.length ? 'لا نتائج' : 'لا توجد مهام بعد'));
+  }
+
+  const today = todayStr();
+  rows.forEach((t) => {
+    const late = t.due < today;
+    const tr = el('tr');
+
+    const tags = el('div', 'tags');
+    t.tags.forEach((n) => tags.append(makeTag('task', n)));
+
+    let fileNode;
+    if (t.file) {
+      fileNode = el('a', 'file', t.file.name);
+      fileNode.href = t.file.data;
+      fileNode.download = t.file.name;
+      fileNode.title = t.file.name;
+    } else {
+      fileNode = el('span', 'muted', '—');
+    }
+
+    const done = el('button', 'done-btn', 'done?');
+    done.onclick = async () => {
+      if (await confirmAsk('هل انتهيت من هذه المهمة؟ سيتم حذفها نهائياً.')) {
+        state.tasks = state.tasks.filter((x) => x.id !== t.id);
+        save();
+        renderTasks();
+      }
+    };
+
+    tr.append(
+      cell('title', document.createTextNode(t.title)),
+      cell('', tags),
+      cell('date', document.createTextNode(t.added)),
+      cell('date' + (late ? ' late' : ''), document.createTextNode(t.due + (late ? ' · متأخرة' : ''))),
+      cell('', fileNode),
+      cell('narrow', done)
+    );
+    body.append(tr);
+  });
+
+  // calculation row
+  const fr = el('tr');
+  const c1 = el('td');
+  c1.append(el('b', null, 'العدد'), document.createTextNode(String(rows.length)));
+  fr.append(c1, el('td'), el('td'), el('td'), el('td'), el('td'));
+  foot.append(fr);
 }
-.type.creditor { --bg-c: var(--green-bg); --fg-c: #1c3829; }
-.type.debtor { --bg-c: var(--red-bg); --fg-c: #5d1715; }
-.type input:checked + span { opacity: 1; box-shadow: 0 0 0 2px var(--blue); }
+
+/* ===== Payments table ===== */
+function renderPayments() {
+  const body = $('payBody');
+  const foot = $('payFoot');
+  body.innerHTML = '';
+  foot.innerHTML = '';
+
+  let cred = 0, debt = 0;
+  state.payments.forEach((p) => {
+    if (p.type === 'creditor') cred += Number(p.amount) || 0;
+    else debt += Number(p.amount) || 0;
+  });
+  const net = cred - debt;
+  $('payCaption').textContent =
+    `لي عند الآخرين: ${fmt(cred)}  ·  عليّ للآخرين: ${fmt(debt)}  ·  الصافي: ${net > 0 ? '+' : ''}${fmt(net)}`;
+
+  const q = $('paySearch').value.trim().toLowerCase();
+  const rows = state.payments
+    .filter((p) => !q || (p.title + ' ' + p.tags.join(' ')).toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!rows.length) {
+    body.append(emptyRow(6, state.payments.length ? 'لا نتائج' : 'لا توجد دفعات بعد'));
+  }
+
+  rows.forEach((p) => {
+    const tr = el('tr');
+
+    const tags = el('div', 'tags');
+    p.tags.forEach((n) => tags.append(makeTag('pay', n)));
+
+    const badge = el('span', 'badge ' + p.type, p.type === 'creditor' ? 'دائن' : 'مدين');
+
+    const hasAmount = p.amount !== undefined && p.amount !== null && p.amount !== '';
+    const sign = p.type === 'creditor' ? '+' : '−';
+    const amountText = hasAmount ? sign + fmt(p.amount) : '—';
+
+    const done = el('button', 'done-btn', 'done?');
+    done.onclick = async () => {
+      if (await confirmAsk('هل تمت تسوية هذه الدفعة؟ سيتم حذفها نهائياً.')) {
+        state.payments = state.payments.filter((x) => x.id !== p.id);
+        save();
+        renderPayments();
+      }
+    };
+
+    tr.append(
+      cell('title', document.createTextNode(p.title)),
+      cell('', tags),
+      cell('', badge),
+      cell('amount ' + p.type, document.createTextNode(amountText)),
+      cell('date', document.createTextNode(p.date)),
+      cell('narrow', done)
+    );
+    body.append(tr);
+  });
+
+  // calculation row
+  const shown = rows.reduce((s, p) => s + (p.type === 'creditor' ? 1 : -1) * (Number(p.amount) || 0), 0);
+  const fr = el('tr');
+  const c1 = el('td');
+  c1.append(el('b', null, 'العدد'), document.createTextNode(String(rows.length)));
+  const c4 = el('td');
+  c4.append(el('b', null, 'المجموع'), document.createTextNode((shown > 0 ? '+' : '') + fmt(shown)));
+  fr.append(c1, el('td'), el('td'), c4, el('td'), el('td'));
+  foot.append(fr);
+}
+
+$('taskSearch').addEventListener('input', renderTasks);
+$('paySearch').addEventListener('input', renderPayments);
+
+/* ===== Dialogs ===== */
+function openTaskDialog() {
+  $('taskForm').reset();
+  $('taskAdded').value = todayStr();
+  taskPicker.reset();
+  $('taskDialog').showModal();
+}
+
+function openPayDialog() {
+  $('payForm').reset();
+  $('payDate').value = todayStr();
+  payPicker.reset();
+  $('payDialog').showModal();
+}
+
+document.querySelectorAll('[data-open]').forEach((b) => {
+  b.onclick = () => (b.dataset.open === 'task' ? openTaskDialog() : openPayDialog());
+});
+
+document.querySelectorAll('[data-close]').forEach((b) => {
+  b.onclick = () => b.closest('dialog').close();
+});
+
+/* ===== Save task ===== */
+$('taskForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const title = $('taskTitle').value.trim();
+  const added = $('taskAdded').value;
+  const due = $('taskDue').value;
+  if (!title || !added || !due) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+
+  const task = { id: Date.now(), title, tags: taskPicker.get(), added, due, file: null };
+  const file = $('taskFile').files[0];
+
+  const finish = () => {
+    state.tasks.push(task);
+    if (!save()) { state.tasks.pop(); return; }
+    $('taskDialog').close();
+    renderTasks();
+  };
+
+  if (!file) return finish();
+  if (file.size > MAX_FILE) { alert('حجم الملف أكبر من 1.5 ميغابايت.'); return; }
+
+  const reader = new FileReader();
+  reader.onload = () => { task.file = { name: file.name, data: reader.result }; finish(); };
+  reader.readAsDataURL(file);
+});
+
+/* ===== Save payment ===== */
+$('payForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const title = $('payTitle').value.trim();
+  const date = $('payDate').value;
+  const amount = parseFloat($('payAmount').value);
+  if (!title || !date) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (isNaN(amount) || amount < 0) { alert('يرجى إدخال مبلغ صحيح.'); return; }
+
+  state.payments.push({
+    id: Date.now(),
+    title,
+    tags: payPicker.get(),
+    type: document.querySelector('input[name="payType"]:checked').value,
+    amount,
+    date,
+  });
+  save();
+  $('payDialog').close();
+  renderPayments();
+});
+
+/* ===== Start ===== */
+renderTasks();
+renderPayments();
