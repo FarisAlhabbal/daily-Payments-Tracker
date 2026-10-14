@@ -1,16 +1,52 @@
-/* ===== التخزين ===== */
+/* ===== Storage ===== */
 const STORE_KEY = 'task-payment-tracker-v1';
-const PALETTE = ['#3b82f6', '#0ea5a4', '#8b5cf6', '#e11d48', '#d97706', '#16a34a', '#db2777', '#475569'];
 const MAX_FILE = 1.5 * 1024 * 1024;
+
+// Notion-style select colors: [background, text]
+const NOTION = [
+  ['#d3e5ef', '#183347'], // blue
+  ['#dbeddb', '#1c3829'], // green
+  ['#e8deee', '#412454'], // purple
+  ['#fadec9', '#49290e'], // orange
+  ['#f5e0e9', '#4c2337'], // pink
+  ['#fdecc8', '#402c1b'], // yellow
+  ['#e3e2e0', '#32302c'], // gray
+  ['#eee0da', '#442a1e'], // brown
+];
 
 let state = load();
 
 function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORE_KEY));
-    if (s) return s;
-  } catch (e) {}
-  return { tasks: [], payments: [], tags: { task: [], pay: [] } };
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+  if (!s) s = { tasks: [], payments: [], tags: { task: [], pay: [] } };
+  // first run only: fill both tables with a few sample rows so the layout is visible
+  if (!s.seeded && !s.tasks.length && !s.payments.length) {
+    s.seeded = true;
+    const day = (n) => {
+      const x = new Date();
+      x.setDate(x.getDate() + n);
+      const p = (v) => String(v).padStart(2, '0');
+      return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
+    };
+    s.tags.task = [{ name: 'العمل', ci: 0 }, { name: 'شخصي', ci: 1 }, { name: 'دراسة', ci: 2 }];
+    s.tags.pay = [{ name: 'أحمد', ci: 3 }, { name: 'سارة', ci: 4 }, { name: 'محمد', ci: 5 }];
+    s.tasks = [
+      { id: 1, title: 'تسليم تقرير المشروع', tags: ['العمل'], added: day(-3), due: day(2), file: null },
+      { id: 2, title: 'حجز موعد الطبيب', tags: ['شخصي'], added: day(-1), due: day(5), file: null },
+      { id: 3, title: 'مراجعة الفصل الثالث', tags: ['دراسة', 'شخصي'], added: day(-6), due: day(-1), file: null },
+    ];
+    s.payments = [
+      { id: 11, title: 'سلفة للإيجار', tags: ['أحمد'], type: 'creditor', amount: 450, date: day(-10) },
+      { id: 12, title: 'عشاء الأسبوع الماضي', tags: ['سارة'], type: 'debtor', amount: 60, date: day(-4) },
+      { id: 13, title: 'ثمن الكتب', tags: ['محمد'], type: 'creditor', amount: 120.5, date: day(-2) },
+    ];
+  }
+  // migrate tags saved by older versions (hex colors) to palette indexes
+  ['task', 'pay'].forEach((k) => {
+    s.tags[k].forEach((t, i) => { if (typeof t.ci !== 'number') t.ci = i % NOTION.length; });
+  });
+  return s;
 }
 
 function save() {
@@ -18,12 +54,12 @@ function save() {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     return true;
   } catch (e) {
-    alert('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
+    toast('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
     return false;
   }
 }
 
-/* ===== أدوات مساعدة ===== */
+/* ===== Helpers ===== */
 const $ = (id) => document.getElementById(id);
 
 function todayStr() {
@@ -39,19 +75,49 @@ function el(tag, cls, text) {
   return e;
 }
 
-function tagColor(kind, name) {
-  const t = state.tags[kind].find((x) => x.name === name);
-  return t ? t.color : '#6b7280';
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 4000);
 }
 
-function tagsRow(kind, names) {
-  const row = el('div', 'tags');
-  names.forEach((n) => {
-    const t = el('span', 'tag', n);
-    t.style.setProperty('--c', tagColor(kind, n));
-    row.append(t);
-  });
-  return row;
+function formError(id, msg) {
+  const p = $(id);
+  p.textContent = msg;
+  p.hidden = false;
+}
+
+function fmt(n) {
+  return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function applyColor(node, kind, name) {
+  const t = state.tags[kind].find((x) => x.name === name);
+  const [bg, fg] = NOTION[t ? t.ci : 6];
+  node.style.setProperty('--bg-c', bg);
+  node.style.setProperty('--fg-c', fg);
+}
+
+function makeTag(kind, name) {
+  const t = el('span', 'tag', name);
+  applyColor(t, kind, name);
+  return t;
+}
+
+function cell(cls, ...children) {
+  const td = el('td', cls);
+  children.forEach((c) => td.append(c));
+  return td;
+}
+
+function emptyRow(cols, text) {
+  const tr = el('tr');
+  const td = el('td', 'empty', text);
+  td.colSpan = cols;
+  tr.append(td);
+  return tr;
 }
 
 function confirmAsk(message) {
@@ -64,7 +130,7 @@ function confirmAsk(message) {
   });
 }
 
-/* ===== منتقي التصنيفات (Tags) ===== */
+/* ===== Tag picker ===== */
 function TagPicker(box, kind, single) {
   const selected = new Set();
   const chips = el('div', 'chips');
@@ -83,7 +149,7 @@ function TagPicker(box, kind, single) {
     state.tags[kind].forEach((t) => {
       const b = el('button', 'chip' + (selected.has(t.name) ? ' on' : ''), t.name);
       b.type = 'button';
-      b.style.setProperty('--c', t.color);
+      applyColor(b, kind, t.name);
       b.onclick = () => {
         if (single) {
           const was = selected.has(t.name);
@@ -102,7 +168,7 @@ function TagPicker(box, kind, single) {
     const name = input.value.trim();
     if (!name) return;
     if (!state.tags[kind].some((t) => t.name === name)) {
-      state.tags[kind].push({ name, color: PALETTE[state.tags[kind].length % PALETTE.length] });
+      state.tags[kind].push({ name, ci: state.tags[kind].length % NOTION.length });
       save();
     }
     if (single) selected.clear();
@@ -120,127 +186,178 @@ function TagPicker(box, kind, single) {
   return {
     get: () => [...selected],
     reset: () => { selected.clear(); input.value = ''; render(); },
-    render,
   };
 }
 
 const taskPicker = TagPicker($('taskTags'), 'task', false);
 const payPicker = TagPicker($('payTags'), 'pay', true);
 
-/* ===== العرض ===== */
+/* ===== Tasks table ===== */
 function renderTasks() {
-  const list = $('taskList');
-  list.innerHTML = '';
-  $('taskCount').textContent = state.tasks.length;
+  const body = $('taskBody');
+  const foot = $('taskFoot');
+  body.innerHTML = '';
+  foot.innerHTML = '';
+  $('taskCount') && ($('taskCount').textContent = state.tasks.length);
 
-  if (!state.tasks.length) {
-    list.append(el('div', 'empty', 'لا توجد مهام بعد'));
-    return;
+  const q = $('taskSearch').value.trim().toLowerCase();
+  const rows = state.tasks
+    .filter((t) => !q || (t.title + ' ' + t.tags.join(' ')).toLowerCase().includes(q))
+    .sort((a, b) => a.due.localeCompare(b.due));
+
+  if (!rows.length) {
+    body.append(emptyRow(6, state.tasks.length ? 'لا نتائج' : 'لا توجد مهام بعد'));
   }
 
   const today = todayStr();
-  [...state.tasks]
-    .sort((a, b) => a.due.localeCompare(b.due))
-    .forEach((t) => {
-      const late = t.due < today;
-      const card = el('div', 'item' + (late ? ' overdue' : ''));
-      card.append(el('h4', null, t.title));
-      if (t.tags.length) card.append(tagsRow('task', t.tags));
+  rows.forEach((t) => {
+    const late = t.due < today;
+    const tr = el('tr');
 
-      const meta = el('div', 'meta');
-      meta.append(el('span', null, 'الإضافة: ' + t.added));
-      meta.append(el('span', late ? 'late' : '', 'الانتهاء: ' + t.due + (late ? ' (متأخرة)' : '')));
-      card.append(meta);
+    const tags = el('div', 'tags');
+    t.tags.forEach((n) => tags.append(makeTag('task', n)));
 
-      if (t.file) {
-        const a = el('a', 'file', '📎 ' + t.file.name);
-        a.href = t.file.data;
-        a.download = t.file.name;
-        card.append(a);
-        card.append(el('br'));
+    let fileNode;
+    if (t.file) {
+      fileNode = el('a', 'file', t.file.name);
+      fileNode.href = t.file.data;
+      fileNode.download = t.file.name;
+      fileNode.title = t.file.name;
+    } else {
+      fileNode = el('span', 'muted', '—');
+    }
+
+    const done = el('button', 'done-btn', 'done?');
+    done.onclick = async () => {
+      if (await confirmAsk('هل انتهيت من هذه المهمة؟ سيتم حذفها نهائياً.')) {
+        state.tasks = state.tasks.filter((x) => x.id !== t.id);
+        save();
+        renderTasks();
       }
+    };
 
-      const done = el('button', 'done-btn', 'done?');
-      done.onclick = async () => {
-        if (await confirmAsk('هل انتهيت من هذه المهمة؟ سيتم حذفها نهائياً.')) {
-          state.tasks = state.tasks.filter((x) => x.id !== t.id);
-          save();
-          renderTasks();
-        }
-      };
-      card.append(done);
-      list.append(card);
-    });
+    tr.append(
+      cell('title', document.createTextNode(t.title)),
+      cell('', tags),
+      cell('date', document.createTextNode(t.added)),
+      cell('date' + (late ? ' late' : ''), document.createTextNode(t.due + (late ? ' · متأخرة' : ''))),
+      cell('', fileNode),
+      cell('narrow', done)
+    );
+    body.append(tr);
+  });
+
+  // calculation row
+  const fr = el('tr');
+  const c1 = el('td');
+  c1.append(el('b', null, 'العدد'), document.createTextNode(String(rows.length)));
+  fr.append(c1, el('td'), el('td'), el('td'), el('td'), el('td'));
+  foot.append(fr);
 }
 
+/* ===== Payments table ===== */
 function renderPayments() {
-  const list = $('payList');
-  list.innerHTML = '';
-  $('payCount').textContent = state.payments.length;
+  const body = $('payBody');
+  const foot = $('payFoot');
+  body.innerHTML = '';
+  foot.innerHTML = '';
 
-  if (!state.payments.length) {
-    list.append(el('div', 'empty', 'لا توجد دفعات بعد'));
-    return;
+  let cred = 0, debt = 0;
+  state.payments.forEach((p) => {
+    if (p.type === 'creditor') cred += Number(p.amount) || 0;
+    else debt += Number(p.amount) || 0;
+  });
+  const net = cred - debt;
+  $('payCaption').textContent =
+    `لي عند الآخرين: ${fmt(cred)}  ·  عليّ للآخرين: ${fmt(debt)}  ·  الصافي: ${net > 0 ? '+' : ''}${fmt(net)}`;
+
+  const q = $('paySearch').value.trim().toLowerCase();
+  const rows = state.payments
+    .filter((p) => !q || (p.title + ' ' + p.tags.join(' ')).toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!rows.length) {
+    body.append(emptyRow(6, state.payments.length ? 'لا نتائج' : 'لا توجد دفعات بعد'));
   }
 
-  [...state.payments]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .forEach((p) => {
-      const card = el('div', 'item ' + p.type);
-      card.append(el('h4', null, p.title));
+  rows.forEach((p) => {
+    const tr = el('tr');
 
-      const row = el('div', 'tags');
-      row.append(el('span', 'badge ' + p.type, p.type === 'creditor' ? 'دائن' : 'مدين'));
-      p.tags.forEach((n) => {
-        const t = el('span', 'tag', n);
-        t.style.setProperty('--c', tagColor('pay', n));
-        row.append(t);
-      });
-      card.append(row);
+    const tags = el('div', 'tags');
+    p.tags.forEach((n) => tags.append(makeTag('pay', n)));
 
-      const meta = el('div', 'meta');
-      meta.append(el('span', null, 'التاريخ: ' + p.date));
-      card.append(meta);
+    const badge = el('span', 'badge ' + p.type, p.type === 'creditor' ? 'دائن' : 'مدين');
 
-      const done = el('button', 'done-btn', 'done?');
-      done.onclick = async () => {
-        if (await confirmAsk('هل تمت تسوية هذه الدفعة؟ سيتم حذفها نهائياً.')) {
-          state.payments = state.payments.filter((x) => x.id !== p.id);
-          save();
-          renderPayments();
-        }
-      };
-      card.append(done);
-      list.append(card);
-    });
+    const hasAmount = p.amount !== undefined && p.amount !== null && p.amount !== '';
+    const sign = p.type === 'creditor' ? '+' : '−';
+    const amountText = hasAmount ? sign + fmt(p.amount) : '—';
+
+    const done = el('button', 'done-btn', 'done?');
+    done.onclick = async () => {
+      if (await confirmAsk('هل تمت تسوية هذه الدفعة؟ سيتم حذفها نهائياً.')) {
+        state.payments = state.payments.filter((x) => x.id !== p.id);
+        save();
+        renderPayments();
+      }
+    };
+
+    tr.append(
+      cell('title', document.createTextNode(p.title)),
+      cell('', tags),
+      cell('', badge),
+      cell('amount ' + p.type, document.createTextNode(amountText)),
+      cell('date', document.createTextNode(p.date)),
+      cell('narrow', done)
+    );
+    body.append(tr);
+  });
+
+  // calculation row
+  const shown = rows.reduce((s, p) => s + (p.type === 'creditor' ? 1 : -1) * (Number(p.amount) || 0), 0);
+  const fr = el('tr');
+  const c1 = el('td');
+  c1.append(el('b', null, 'العدد'), document.createTextNode(String(rows.length)));
+  const c4 = el('td');
+  c4.append(el('b', null, 'المجموع'), document.createTextNode((shown > 0 ? '+' : '') + fmt(shown)));
+  fr.append(c1, el('td'), el('td'), c4, el('td'), el('td'));
+  foot.append(fr);
 }
 
-/* ===== فتح وإغلاق النوافذ ===== */
-$('openTask').onclick = () => {
+$('taskSearch').addEventListener('input', renderTasks);
+$('paySearch').addEventListener('input', renderPayments);
+
+/* ===== Dialogs ===== */
+function openTaskDialog() {
   $('taskForm').reset();
+  $('taskError').hidden = true;
   $('taskAdded').value = todayStr();
   taskPicker.reset();
   $('taskDialog').showModal();
-};
+}
 
-$('openPay').onclick = () => {
+function openPayDialog() {
   $('payForm').reset();
+  $('payError').hidden = true;
   $('payDate').value = todayStr();
   payPicker.reset();
   $('payDialog').showModal();
-};
+}
+
+document.querySelectorAll('[data-open]').forEach((b) => {
+  b.onclick = () => (b.dataset.open === 'task' ? openTaskDialog() : openPayDialog());
+});
 
 document.querySelectorAll('[data-close]').forEach((b) => {
   b.onclick = () => b.closest('dialog').close();
 });
 
-/* ===== حفظ مهمة ===== */
+/* ===== Save task ===== */
 $('taskForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const title = $('taskTitle').value.trim();
   const added = $('taskAdded').value;
   const due = $('taskDue').value;
-  if (!title || !added || !due) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (!title || !added || !due) { formError('taskError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
 
   const task = { id: Date.now(), title, tags: taskPicker.get(), added, due, file: null };
   const file = $('taskFile').files[0];
@@ -253,25 +370,28 @@ $('taskForm').addEventListener('submit', (e) => {
   };
 
   if (!file) return finish();
-  if (file.size > MAX_FILE) { alert('حجم الملف أكبر من 1.5 ميغابايت.'); return; }
+  if (file.size > MAX_FILE) { formError('taskError', 'حجم الملف أكبر من 1.5 ميغابايت.'); return; }
 
   const reader = new FileReader();
   reader.onload = () => { task.file = { name: file.name, data: reader.result }; finish(); };
   reader.readAsDataURL(file);
 });
 
-/* ===== حفظ دفعة ===== */
+/* ===== Save payment ===== */
 $('payForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const title = $('payTitle').value.trim();
   const date = $('payDate').value;
-  if (!title || !date) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+  const amount = parseFloat($('payAmount').value);
+  if (!title || !date) { formError('payError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (isNaN(amount) || amount < 0) { formError('payError', 'يرجى إدخال مبلغ صحيح.'); return; }
 
   state.payments.push({
     id: Date.now(),
     title,
     tags: payPicker.get(),
     type: document.querySelector('input[name="payType"]:checked').value,
+    amount,
     date,
   });
   save();
@@ -279,6 +399,6 @@ $('payForm').addEventListener('submit', (e) => {
   renderPayments();
 });
 
-/* ===== البدء ===== */
+/* ===== Start ===== */
 renderTasks();
 renderPayments();
