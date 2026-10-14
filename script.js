@@ -54,7 +54,7 @@ function save() {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     return true;
   } catch (e) {
-    toast('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
+    alert('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
     return false;
   }
 }
@@ -73,20 +73,6 @@ function el(tag, cls, text) {
   if (cls) e.className = cls;
   if (text !== undefined) e.textContent = text;
   return e;
-}
-
-function toast(msg) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.hidden = false;
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => { t.hidden = true; }, 4000);
-}
-
-function formError(id, msg) {
-  const p = $(id);
-  p.textContent = msg;
-  p.hidden = false;
 }
 
 function fmt(n) {
@@ -329,7 +315,6 @@ $('paySearch').addEventListener('input', renderPayments);
 /* ===== Dialogs ===== */
 function openTaskDialog() {
   $('taskForm').reset();
-  $('taskError').hidden = true;
   $('taskAdded').value = todayStr();
   taskPicker.reset();
   $('taskDialog').showModal();
@@ -337,7 +322,6 @@ function openTaskDialog() {
 
 function openPayDialog() {
   $('payForm').reset();
-  $('payError').hidden = true;
   $('payDate').value = todayStr();
   payPicker.reset();
   $('payDialog').showModal();
@@ -357,7 +341,7 @@ $('taskForm').addEventListener('submit', (e) => {
   const title = $('taskTitle').value.trim();
   const added = $('taskAdded').value;
   const due = $('taskDue').value;
-  if (!title || !added || !due) { formError('taskError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (!title || !added || !due) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
 
   const task = { id: Date.now(), title, tags: taskPicker.get(), added, due, file: null };
   const file = $('taskFile').files[0];
@@ -370,7 +354,7 @@ $('taskForm').addEventListener('submit', (e) => {
   };
 
   if (!file) return finish();
-  if (file.size > MAX_FILE) { formError('taskError', 'حجم الملف أكبر من 1.5 ميغابايت.'); return; }
+  if (file.size > MAX_FILE) { alert('حجم الملف أكبر من 1.5 ميغابايت.'); return; }
 
   const reader = new FileReader();
   reader.onload = () => { task.file = { name: file.name, data: reader.result }; finish(); };
@@ -383,8 +367,8 @@ $('payForm').addEventListener('submit', (e) => {
   const title = $('payTitle').value.trim();
   const date = $('payDate').value;
   const amount = parseFloat($('payAmount').value);
-  if (!title || !date) { formError('payError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
-  if (isNaN(amount) || amount < 0) { formError('payError', 'يرجى إدخال مبلغ صحيح.'); return; }
+  if (!title || !date) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (isNaN(amount) || amount < 0) { alert('يرجى إدخال مبلغ صحيح.'); return; }
 
   state.payments.push({
     id: Date.now(),
