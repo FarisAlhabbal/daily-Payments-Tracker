@@ -125,6 +125,243 @@ function confirmAsk(message) {
   });
 }
 
+
+/* ===== Tags: create / delete ===== */
+function nextColor(kind) {
+  const used = Array(TAG_COLORS).fill(0);
+  state.tags[kind].forEach((t) => { used[t.ci]++; });
+  return used.indexOf(Math.min(...used));
+}
+
+function ensureTag(kind, name) {
+  if (!state.tags[kind].some((t) => t.name === name)) {
+    state.tags[kind].push({ name, ci: nextColor(kind) });
+    save();
+  }
+}
+
+async function deleteTag(kind, name) {
+  const key = kind === 'task' ? 'tasks' : 'payments';
+  const used = state[key].filter((r) => r.tags.includes(name)).length;
+  const msg = used
+    ? `سيتم حذف "${name}" نهائياً وإزالته من ${used} من الصفوف.`
+    : `سيتم حذف "${name}" نهائياً.`;
+  if (!(await confirmAsk(msg))) return false;
+  state.tags[kind] = state.tags[kind].filter((t) => t.name !== name);
+  state[key].forEach((r) => { r.tags = r.tags.filter((n) => n !== name); });
+  save();
+  renderTasks();
+  renderPayments();
+  return true;
+}
+
+/* ===== Popup menu (tags / type) ===== */
+const menuEl = el('div', 'menu');
+menuEl.hidden = true;
+document.body.append(menuEl);
+let menuState = null;
+
+function placeMenu() {
+  const r = menuState.rect;
+  const w = menuEl.offsetWidth;
+  const view = document.documentElement.clientWidth;
+  let left = r.right + window.scrollX - w;               // align to the cell's right edge (RTL)
+  left = Math.max(8 + window.scrollX, Math.min(left, window.scrollX + view - w - 8));
+  menuEl.style.left = left + 'px';
+  menuEl.style.top = (r.bottom + window.scrollY + 4) + 'px';
+}
+
+function renderMenu() {
+  menuEl.textContent = '';
+  menuState.build(menuEl);
+  placeMenu();
+}
+
+function openMenu(anchor, build) {
+  menuState = { build, rect: anchor.getBoundingClientRect() };
+  menuEl.hidden = false;
+  renderMenu();
+}
+
+function closeMenu() {
+  menuEl.hidden = true;
+  menuState = null;
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (menuState && !menuEl.contains(e.target)) closeMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && menuState) closeMenu();
+});
+
+function tagMenu(kind, row, single, rerender) {
+  let refocus = false;
+  return (m) => {
+    m.append(el('div', 'menu-head', single ? 'اختر شخصاً أو أضف جديداً' : 'اختر تصنيفات أو أضف جديداً'));
+
+    const list = el('div', 'menu-list');
+    state.tags[kind].forEach((t) => {
+      const item = el('div', 'menu-item');
+
+      const pick = el('button', 'menu-pick');
+      pick.type = 'button';
+      const tag = el('span', 'tag', t.name);
+      tag.dataset.c = t.ci;
+      pick.append(tag);
+      if (row.tags.includes(t.name)) pick.append(el('span', 'check', '✓'));
+      pick.onclick = () => {
+        if (single) row.tags = row.tags.includes(t.name) ? [] : [t.name];
+        else row.tags = row.tags.includes(t.name) ? row.tags.filter((n) => n !== t.name) : [...row.tags, t.name];
+        save();
+        rerender();
+        renderMenu();
+      };
+
+      const del = el('button', 'menu-del', '×');
+      del.type = 'button';
+      del.title = 'حذف هذا التصنيف نهائياً';
+      del.setAttribute('aria-label', 'حذف ' + t.name);
+      del.onclick = async () => {
+        closeMenu();
+        await deleteTag(kind, t.name);
+      };
+
+      item.append(pick, del);
+      list.append(item);
+    });
+    if (!state.tags[kind].length) list.append(el('div', 'menu-empty', 'لا توجد تصنيفات بعد'));
+    m.append(list);
+
+    const input = el('input', 'menu-input');
+    input.type = 'text';
+    input.maxLength = 30;
+    input.placeholder = single ? 'اسم شخص جديد…' : 'تصنيف جديد…';
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      ensureTag(kind, name);
+      if (single) row.tags = [name];
+      else if (!row.tags.includes(name)) row.tags = [...row.tags, name];
+      save();
+      refocus = true;
+      rerender();
+      renderMenu();
+    });
+    m.append(input);
+    if (refocus) { input.focus(); refocus = false; }
+  };
+}
+
+function typeMenu(p) {
+  return (m) => {
+    m.append(el('div', 'menu-head', 'نوع الدفعة'));
+    const list = el('div', 'menu-list');
+    [['creditor', 'دائن (لي عنده)'], ['debtor', 'مدين (عليّ له)']].forEach(([v, label]) => {
+      const item = el('div', 'menu-item');
+      const pick = el('button', 'menu-pick');
+      pick.type = 'button';
+      pick.append(el('span', 'badge ' + v, label));
+      if (p.type === v) pick.append(el('span', 'check', '✓'));
+      pick.onclick = () => {
+        p.type = v;
+        save();
+        closeMenu();
+        renderPayments();
+      };
+      item.append(pick);
+      list.append(item);
+    });
+    m.append(list);
+  };
+}
+
+/* ===== Inline editing ===== */
+let renderTimer = null;
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => {
+    if (!document.querySelector('.cell-input')) { renderTasks(); renderPayments(); }
+  }, 200);
+}
+
+function editable(td, start, pickable) {
+  td.classList.add('editable');
+  if (pickable) td.classList.add('pickable');
+  td.tabIndex = 0;
+  td.addEventListener('click', (e) => {
+    if (e.target.closest('a, button')) return;
+    start(td);
+  });
+  td.addEventListener('keydown', (e) => {
+    if (e.target === td && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); start(td); }
+  });
+  return td;
+}
+
+function inlineEdit(td, opts) {
+  if (td.classList.contains('editing')) return;
+  const { type, value, show, onSave } = opts;
+  closeMenu();
+
+  const input = el('input', 'cell-input');
+  input.type = type;
+  input.value = value === undefined || value === null ? '' : value;
+  if (type === 'number') { input.min = '0'; input.step = 'any'; input.inputMode = 'decimal'; }
+  td.textContent = '';
+  td.classList.add('editing');
+  td.append(input);
+  input.focus();
+  if (type !== 'date') input.select();
+
+  let done = false;
+  const finish = (commit, viaBlur) => {
+    if (done) return;
+    done = true;
+    let ok = true;
+    if (commit && input.value !== String(value ?? '')) {
+      ok = onSave(input.value) !== false;
+      if (!ok) toast('القيمة غير صالحة، لم يتم التعديل.');
+    }
+    if (viaBlur) {
+      // keep the DOM until a possible click on another cell has been handled
+      td.classList.remove('editing');
+      td.textContent = show(commit && ok ? input.value : value);
+      scheduleRender();
+    } else {
+      renderTasks();
+      renderPayments();
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true, false); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false, false); }
+  });
+  input.addEventListener('blur', () => finish(true, true));
+}
+
+function pickFile(task) {
+  const fi = $('cellFile');
+  fi.onchange = () => {
+    const f = fi.files[0];
+    fi.value = '';
+    if (!f) return;
+    if (f.size > MAX_FILE) { toast('حجم الملف أكبر من 1.5 ميغابايت.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const old = task.file;
+      task.file = { name: f.name, data: reader.result };
+      if (!save()) task.file = old;
+      renderTasks();
+    };
+    reader.readAsDataURL(f);
+  };
+  fi.click();
+}
+
 /* ===== Tag picker ===== */
 function TagPicker(box, kind, single) {
   const selected = new Set();
@@ -142,9 +379,11 @@ function TagPicker(box, kind, single) {
   function render() {
     chips.innerHTML = '';
     state.tags[kind].forEach((t) => {
-      const b = el('button', 'chip' + (selected.has(t.name) ? ' on' : ''), t.name);
+      const wrap = el('span', 'chip-wrap' + (selected.has(t.name) ? ' on' : ''));
+      applyColor(wrap, kind, t.name);
+
+      const b = el('button', 'chip', t.name);
       b.type = 'button';
-      applyColor(b, kind, t.name);
       b.onclick = () => {
         if (single) {
           const was = selected.has(t.name);
@@ -155,17 +394,27 @@ function TagPicker(box, kind, single) {
         }
         render();
       };
-      chips.append(b);
+
+      const x = el('button', 'chip-del', '×');
+      x.type = 'button';
+      x.title = 'حذف هذا التصنيف نهائياً';
+      x.setAttribute('aria-label', 'حذف ' + t.name);
+      x.onclick = async () => {
+        if (await deleteTag(kind, t.name)) {
+          selected.delete(t.name);
+          render();
+        }
+      };
+
+      wrap.append(b, x);
+      chips.append(wrap);
     });
   }
 
   function addTag() {
     const name = input.value.trim();
     if (!name) return;
-    if (!state.tags[kind].some((t) => t.name === name)) {
-      state.tags[kind].push({ name, ci: state.tags[kind].length % TAG_COLORS });
-      save();
-    }
+    ensureTag(kind, name);
     if (single) selected.clear();
     selected.add(name);
     input.value = '';
@@ -193,7 +442,6 @@ function renderTasks() {
   const foot = $('taskFoot');
   body.innerHTML = '';
   foot.innerHTML = '';
-  $('taskCount') && ($('taskCount').textContent = state.tasks.length);
 
   const q = $('taskSearch').value.trim().toLowerCase();
   const rows = state.tasks
@@ -212,14 +460,20 @@ function renderTasks() {
     const tags = el('div', 'tags');
     t.tags.forEach((n) => tags.append(makeTag('task', n)));
 
-    let fileNode;
+    const fileTd = cell('');
     if (t.file) {
-      fileNode = el('a', 'file', t.file.name);
-      fileNode.href = t.file.data;
-      fileNode.download = t.file.name;
-      fileNode.title = t.file.name;
+      const a = el('a', 'file', t.file.name);
+      a.href = t.file.data;
+      a.download = t.file.name;
+      a.title = t.file.name;
+      const rm = el('button', 'file-del', '×');
+      rm.type = 'button';
+      rm.title = 'إزالة الملف';
+      rm.setAttribute('aria-label', 'إزالة الملف');
+      rm.onclick = () => { t.file = null; save(); renderTasks(); };
+      fileTd.append(a, rm);
     } else {
-      fileNode = el('span', 'muted', '—');
+      fileTd.append(el('span', 'muted', '—'));
     }
 
     const done = el('button', 'done-btn', 'done?');
@@ -231,12 +485,24 @@ function renderTasks() {
       }
     };
 
+    const dateEdit = (field) => (td) => inlineEdit(td, {
+      type: 'date',
+      value: t[field],
+      show: fmtDate,
+      onSave: (v) => { if (!v) return false; t[field] = v; save(); },
+    });
+
     tr.append(
-      cell('title', document.createTextNode(t.title)),
-      cell('', tags),
-      cell('date', document.createTextNode(fmtDate(t.added))),
-      cell('date' + (late ? ' late' : ''), document.createTextNode(fmtDate(t.due) + (late ? ' · متأخرة' : ''))),
-      cell('', fileNode),
+      editable(cell('title', document.createTextNode(t.title)), (td) => inlineEdit(td, {
+        type: 'text',
+        value: t.title,
+        show: (v) => v,
+        onSave: (v) => { v = v.trim(); if (!v) return false; t.title = v; save(); },
+      })),
+      editable(cell('', tags), (td) => openMenu(td, tagMenu('task', t, false, renderTasks)), true),
+      editable(cell('date', document.createTextNode(fmtDate(t.added))), dateEdit('added')),
+      editable(cell('date' + (late ? ' late' : ''), document.createTextNode(fmtDate(t.due) + (late ? ' · متأخرة' : ''))), dateEdit('due')),
+      editable(fileTd, () => pickFile(t), true),
       cell('narrow', done)
     );
     body.append(tr);
@@ -283,8 +549,8 @@ function renderPayments() {
 
     const badge = el('span', 'badge ' + p.type, p.type === 'creditor' ? 'دائن' : 'مدين');
 
-    const hasAmount = p.amount !== undefined && p.amount !== null && p.amount !== '';
     const sign = p.type === 'creditor' ? '+' : '−';
+    const hasAmount = p.amount !== undefined && p.amount !== null && p.amount !== '';
     const amountText = hasAmount ? sign + fmt(p.amount) : '—';
 
     const done = el('button', 'done-btn', 'done?');
@@ -297,11 +563,26 @@ function renderPayments() {
     };
 
     tr.append(
-      cell('title', document.createTextNode(p.title)),
-      cell('', tags),
-      cell('', badge),
-      cell('amount ' + p.type, document.createTextNode(amountText)),
-      cell('date', document.createTextNode(fmtDate(p.date))),
+      editable(cell('title', document.createTextNode(p.title)), (td) => inlineEdit(td, {
+        type: 'text',
+        value: p.title,
+        show: (v) => v,
+        onSave: (v) => { v = v.trim(); if (!v) return false; p.title = v; save(); },
+      })),
+      editable(cell('', tags), (td) => openMenu(td, tagMenu('pay', p, true, renderPayments)), true),
+      editable(cell('', badge), (td) => openMenu(td, typeMenu(p)), true),
+      editable(cell('amount ' + p.type, document.createTextNode(amountText)), (td) => inlineEdit(td, {
+        type: 'number',
+        value: hasAmount ? p.amount : '',
+        show: (v) => (v === '' || v === null || isNaN(parseFloat(v)) ? '—' : sign + fmt(v)),
+        onSave: (v) => { const n = parseFloat(v); if (isNaN(n) || n < 0) return false; p.amount = n; save(); },
+      })),
+      editable(cell('date', document.createTextNode(fmtDate(p.date))), (td) => inlineEdit(td, {
+        type: 'date',
+        value: p.date,
+        show: fmtDate,
+        onSave: (v) => { if (!v) return false; p.date = v; save(); },
+      })),
       cell('narrow', done)
     );
     body.append(tr);
