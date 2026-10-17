@@ -2,17 +2,8 @@
 const STORE_KEY = 'task-payment-tracker-v1';
 const MAX_FILE = 1.5 * 1024 * 1024;
 
-// Notion-style select colors: [background, text]
-const NOTION = [
-  ['#d3e5ef', '#183347'], // blue
-  ['#dbeddb', '#1c3829'], // green
-  ['#e8deee', '#412454'], // purple
-  ['#fadec9', '#49290e'], // orange
-  ['#f5e0e9', '#4c2337'], // pink
-  ['#fdecc8', '#402c1b'], // yellow
-  ['#e3e2e0', '#32302c'], // gray
-  ['#eee0da', '#442a1e'], // brown
-];
+// number of tag colors (see [data-c] rules in style.css)
+const TAG_COLORS = 8;
 
 let state = load();
 
@@ -44,7 +35,7 @@ function load() {
   }
   // migrate tags saved by older versions (hex colors) to palette indexes
   ['task', 'pay'].forEach((k) => {
-    s.tags[k].forEach((t, i) => { if (typeof t.ci !== 'number') t.ci = i % NOTION.length; });
+    s.tags[k].forEach((t, i) => { if (typeof t.ci !== 'number') t.ci = i % TAG_COLORS; });
   });
   return s;
 }
@@ -54,7 +45,7 @@ function save() {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     return true;
   } catch (e) {
-    alert('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
+    toast('تعذّر الحفظ: مساحة التخزين ممتلئة (ربما بسبب حجم الملفات).');
     return false;
   }
 }
@@ -75,15 +66,33 @@ function el(tag, cls, text) {
   return e;
 }
 
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 4000);
+}
+
+function formError(id, msg) {
+  const p = $(id);
+  p.textContent = msg;
+  p.hidden = false;
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function fmt(n) {
   return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function applyColor(node, kind, name) {
   const t = state.tags[kind].find((x) => x.name === name);
-  const [bg, fg] = NOTION[t ? t.ci : 6];
-  node.style.setProperty('--bg-c', bg);
-  node.style.setProperty('--fg-c', fg);
+  node.dataset.c = t ? t.ci : 6;
 }
 
 function makeTag(kind, name) {
@@ -154,7 +163,7 @@ function TagPicker(box, kind, single) {
     const name = input.value.trim();
     if (!name) return;
     if (!state.tags[kind].some((t) => t.name === name)) {
-      state.tags[kind].push({ name, ci: state.tags[kind].length % NOTION.length });
+      state.tags[kind].push({ name, ci: state.tags[kind].length % TAG_COLORS });
       save();
     }
     if (single) selected.clear();
@@ -225,8 +234,8 @@ function renderTasks() {
     tr.append(
       cell('title', document.createTextNode(t.title)),
       cell('', tags),
-      cell('date', document.createTextNode(t.added)),
-      cell('date' + (late ? ' late' : ''), document.createTextNode(t.due + (late ? ' · متأخرة' : ''))),
+      cell('date', document.createTextNode(fmtDate(t.added))),
+      cell('date' + (late ? ' late' : ''), document.createTextNode(fmtDate(t.due) + (late ? ' · متأخرة' : ''))),
       cell('', fileNode),
       cell('narrow', done)
     );
@@ -292,7 +301,7 @@ function renderPayments() {
       cell('', tags),
       cell('', badge),
       cell('amount ' + p.type, document.createTextNode(amountText)),
-      cell('date', document.createTextNode(p.date)),
+      cell('date', document.createTextNode(fmtDate(p.date))),
       cell('narrow', done)
     );
     body.append(tr);
@@ -315,6 +324,7 @@ $('paySearch').addEventListener('input', renderPayments);
 /* ===== Dialogs ===== */
 function openTaskDialog() {
   $('taskForm').reset();
+  $('taskError').hidden = true;
   $('taskAdded').value = todayStr();
   taskPicker.reset();
   $('taskDialog').showModal();
@@ -322,6 +332,7 @@ function openTaskDialog() {
 
 function openPayDialog() {
   $('payForm').reset();
+  $('payError').hidden = true;
   $('payDate').value = todayStr();
   payPicker.reset();
   $('payDialog').showModal();
@@ -341,7 +352,7 @@ $('taskForm').addEventListener('submit', (e) => {
   const title = $('taskTitle').value.trim();
   const added = $('taskAdded').value;
   const due = $('taskDue').value;
-  if (!title || !added || !due) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (!title || !added || !due) { formError('taskError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
 
   const task = { id: Date.now(), title, tags: taskPicker.get(), added, due, file: null };
   const file = $('taskFile').files[0];
@@ -354,7 +365,7 @@ $('taskForm').addEventListener('submit', (e) => {
   };
 
   if (!file) return finish();
-  if (file.size > MAX_FILE) { alert('حجم الملف أكبر من 1.5 ميغابايت.'); return; }
+  if (file.size > MAX_FILE) { formError('taskError', 'حجم الملف أكبر من 1.5 ميغابايت.'); return; }
 
   const reader = new FileReader();
   reader.onload = () => { task.file = { name: file.name, data: reader.result }; finish(); };
@@ -367,8 +378,8 @@ $('payForm').addEventListener('submit', (e) => {
   const title = $('payTitle').value.trim();
   const date = $('payDate').value;
   const amount = parseFloat($('payAmount').value);
-  if (!title || !date) { alert('يرجى تعبئة الحقول المطلوبة.'); return; }
-  if (isNaN(amount) || amount < 0) { alert('يرجى إدخال مبلغ صحيح.'); return; }
+  if (!title || !date) { formError('payError', 'يرجى تعبئة الحقول المطلوبة.'); return; }
+  if (isNaN(amount) || amount < 0) { formError('payError', 'يرجى إدخال مبلغ صحيح.'); return; }
 
   state.payments.push({
     id: Date.now(),
